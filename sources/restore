@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+restore_data() {
+    local was_running=1
+
+    if ! docker_service_is_running "db"; then
+        docker compose -f "${docker_compose}" up db -d
+        was_running=0
+    fi
+
+    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore data"
+
+    if [ $was_running = 0 ]; then
+        docker compose -f "${docker_compose}" down db
+    fi
+}
+
+restore_imgs() {
+    docker compose -f "${docker_compose}" run --rm matsin bash -c "yarsin restore imgs"
+}
+
+restore_dbms() {
+    local was_running=1
+
+    if ! docker_service_is_running "db"; then
+        docker compose -f "${docker_compose}" up db -d
+        was_running=0
+    fi
+
+    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore dbms"
+
+    if [ $was_running = 0 ]; then
+        docker compose -f "${docker_compose}" down db
+    fi
+}
+
+if [[ $# -eq 0 ]]; then
+    restore_data "$@"
+    exit 0
+fi
+
+# Assign the first command line argument to the variable 'function_name'
+function_name="$1"
+shift
+
+if [[ "$function_name" = "data" ]]; then
+    restore_data "$@"
+elif [[ "$function_name" = "imgs" ]]; then
+    restore_imgs "$@"
+elif [[ "$function_name" = "dbms" ]]; then
+    restore_dbms "$@"
+else
+    message_error "Invalid function name. Available functions: data, imgs, dbms"
+fi

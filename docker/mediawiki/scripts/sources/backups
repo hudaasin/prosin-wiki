@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+# Function to list image backup files
+backups_imgs() {
+    message_info "Here are your image backups:"
+    list_backups "*_${BACKUP_FILE_SUFFIX}.tar.xz"
+}
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]"
+    exit 1
+fi
+
+function_name="${1}"
+
+# Call the specified function with the provided arguments
+case $function_name in
+"ims")
+    shift
+    list_backups "*_${BACKUP_FILE_SUFFIX}.tar.xz"
+    ;;
+"imgs")
+    shift
+    backups_imgs "$@"
+    ;;
+*)
+    message_error "Invalid operator name. Available operators: imgs"
+    exit 1
+    ;;
+esac

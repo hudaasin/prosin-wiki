@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+db_backups() {
+    local fname="$1"
+    if docker_service_is_running "db"; then
+        docker compose -f "${docker_compose}" exec db bash -c "run_as $(whoami) $(id -u) yarsin backups ${fname}"
+    else
+        docker compose -f "${docker_compose}" run --rm db bash -c "run_as $(whoami) $(id -u) yarsin backups ${fname}"
+    fi
+}
+
+imgs_backups() {
+    local service_name="$1"
+    if docker_service_is_running "${service_name}"; then
+        docker compose -f "${docker_compose}" exec ${service_name} bash -c "yarsin backups imgs"
+    else
+        docker compose -f "${docker_compose}" run --rm ${service_name} bash -c "yarsin backups imgs"
+    fi
+}
+
+if [[ $# -eq 0 ]]; then
+    db_backups data
+    exit 0
+fi
+
+# Assign the first command line argument to the variable 'function_name'
+function_name="$1"
+shift
+
+# Check the function name and call the corresponding backup function
+if [[ "$function_name" = "data" ]]; then
+    db_backups data
+elif [[ "$function_name" = "imgs" ]]; then
+    imgs_backups matsin
+elif [[ "$function_name" = "dbms" ]]; then
+    db_backups "dbms"
+else
+    message_error "Invalid function name. Available functions: data, imgs, dbms"
+fi

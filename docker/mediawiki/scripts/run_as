@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+# Define the project and workdir directory
+workdir="$(cd "$(dirname "$0")" && pwd)" # Get the directory of the script
+project_dir=$(realpath "$workdir")       # Get the project directory by going up zero level
+
+# Source the necessary files
+source "${workdir}/sources/_constants.sh" # Constants file
+source "${workdir}/sources/_messages.sh"  # Messages file
+source "${workdir}/sources/_utils.sh"     # Utilities file
+
+# Function to get or create a user with the specified UID
+get_or_create_user() {
+    local user_account="$1"
+    local uid="$2"
+    local username=$(getent passwd "$uid" | cut -d: -f1)
+
+    if [ -z "$username" ]; then
+        useradd -m -s /bin/bash -u "$uid" ${user_account}
+        username=$(getent passwd "$uid" | cut -d: -f1)
+    fi
+
+    echo "$username"
+}
+
+# Main script logic
+username="$1"
+uid="$2"
+shift 2
+
+# Switch to the user with the specified UID and execute the provided command
+su -c "$*" "$(get_or_create_user $username $uid)"

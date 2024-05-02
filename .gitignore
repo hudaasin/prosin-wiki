@@ -1,0 +1,15 @@
+# Media Wiki
+data/*
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# LibreOffice locks
+.~lock.*#
+
+# Draw.io
+*.bkp

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+# Function to list backups for metadata
+md_backups() {
+    list_backups "*_${DBMS_BACKUP_FILE_SUFFIX}.sql.gz" # List metadata backups with a specific suffix
+}
+
+# Function to list backups for a specific database
+db_backups() {
+    local db_name="$1"
+    list_backups "$db_name*_${DATA_BACKUP_FILE_SUFFIX}.sql.gz" "$DATA_BACKUP_DIR" # List database backups with a specific suffix and directory
+}
+
+# Function to list all backups
+backups() {
+    md_backups      # List metadata backups
+    message_newline # Add a newline for better readability
+    db_backups      # List database backups
+}
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]" # Display error message for missing arguments
+    exit 1
+fi
+
+function_name="$1"
+shift
+
+# Call the specified function with the provided arguments
+case $function_name in
+"md")
+    md_backups "$@" # List metadata backups
+    ;;
+"db")
+    db_backups "$@" # List database backups
+    ;;
+"dbms")
+    message_info "Here are your DBMS backups:" # Display info message for DBMS backups
+    md_backups "$@"                            # List metadata backups
+    ;;
+"data")
+    message_info "Here are your database backups:" # Display info message for database backups
+    db_backups "$@"                                # List database backups
+    ;;
+"all")
+    backups "$@" # List all backups
+    ;;
+*)
+    message_error "Invalid operator name. Available operators: dbms, data, all" # Display error message for invalid operator
+    exit 1
+    ;;
+esac

@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+
+# Set the script to exit immediately if a command exits with a non-zero status
+set -o errexit
+# Set the script to exit when a command in a pipeline fails
+set -o pipefail
+# Set the script to exit if it tries to use unset variables
+set -o nounset
+
+# Function to restore the MariaDB backup
+restore_mb() {
+    # Initialize variables
+    local backup_name=""
+
+    # Parse named arguments
+    while getopts "n:" opt; do
+        case ${opt} in
+        n) backup_name=${OPTARG} ;; # Set the backup_name from the argument
+        *)
+            message_error "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    # Check if required arguments are provided
+    if [[ -z $backup_name ]]; then
+        message_error "Usage: $0 -n <backup name>"
+        exit 1
+    fi
+
+    # Construct the full path of the backup file
+    local backup_path="${DBMS_BACKUP_DIR}/${backup_name}"
+
+    # Check if the backup file exists
+    if [[ ! -f "${backup_path}" ]]; then
+        message_error "Backup file '${backup_name}' not found. Please check the 'yarsin backups data' output to verify the availability of the backup file and try running the restore process again."
+        exit 1
+    fi
+
+    # Check if the backup file has a *.sql.gz extension
+    if [[ ! "$backup_path" =~ \.sql\.gz$ ]]; then
+        message_error "Invalid backup file format. Please provide a '*.sql.gz' file."
+        exit 1
+    fi
+
+    # Start the restore process
+    message_success "Backup found. Initiating restoration from '${backup_path}'..."
+
+    local tmp_dir=/tmp/backup
+
+    # Create a temporary directory for the restore process
+    if ! mkdir -p "${tmp_dir}" || ! rm -rf "${tmp_dir}"/*; then
+        message_error "Failed to create or clean up the temporary directory. Restore process aborted."
+        exit 1
+    fi
+
+    # Extract the backup file to the temporary directory
+    gunzip -c ${backup_path} | mbstream -x -C "${tmp_dir}" 2>/dev/null &
+    spinner "Extracting the backup..."
+    # Check the exit status of the gunzip function
+    if [[ $? -eq 0 ]]; then
+        message_success "Backup extraction successful."
+    else
+        message_error "Failed to extract the backup file to the temporary directory. Restore process aborted."
+        exit 1
+    fi
+
+    # Prepare the backup for restore
+    mariadb-backup --prepare --target-dir="${tmp_dir}" 2>/dev/null &
+    spinner "Preparing the backup for restore."
+    # Check the exit status of the mariadb-backup function
+    if [[ $? -eq 0 ]]; then
+        message_success "Backup prepared for restore."
+    else
+        message_error "Failed to prepare the backup for restore. Restore process aborted."
+        exit 1
+    fi
+
+    # Remove existing data in the MariaDB data directory
+    rm -rf "${BACKUP_DESTINATION}"/* 2>/dev/null &
+    spinner "Removing existing data in the MariaDB data directory."
+    # Check the exit status of the rm function
+    if [[ $? -eq 0 ]]; then
+        message_success "Existing data in the MariaDB data directory have been removed."
+    else
+        message_error "Failed to remove data in the MariaDB data directory. Restore process aborted."
+        exit 1
+    fi
+
+    # Move the backup files back to the MariaDB data directory
+    mariadb-backup --move-back --target-dir="${tmp_dir}" 2>/dev/null &
+    spinner "Moving the backup files back to the MariaDB data directory..."
+    # Check the exit status of the mariadb-backup function
+    if [[ $? -eq 0 ]]; then
+        message_success "Backup files moved back to the MariaDB data directory."
+    else
+        message_error "Failed to move the backup files back to the MariaDB data directory. Restore process aborted."
+        exit 1
+    fi
+
+    # Change the ownership of the MariaDB data directory
+    chown -R mysql:mysql "${BACKUP_DESTINATION}/" 2>/dev/null &
+    spinner "Changing the ownership of the MariaDB data directory"
+    # Check the exit status of the chown function
+    if [[ $? -eq 0 ]]; then
+        message_success "Ownership of the MariaDB data directory changed successfully."
+    else
+        message_error "Failed to change the ownership of the MariaDB data directory. Restore process aborted."
+        exit 1
+    fi
+
+    # Display success message
+    message_success "Database successfully restored from the '${backup_path}' backup."
+}
+
+# Function to restore a specific database from a backup
+restore_db() {
+    # Initialize variables
+    local username=""
+    local password=""
+    local db_name=""
+    local backup_name=""
+
+    # Parse named arguments
+    while getopts "u:p:n:d:" opt; do
+        case ${opt} in
+        u) username=${OPTARG} ;;    # Set the username from the argument
+        p) password=${OPTARG} ;;    # Set the password from the argument
+        d) db_name=${OPTARG} ;;     # Set the db_name from the argument
+        n) backup_name=${OPTARG} ;; # Set the backup_name from the argument
+        *)
+            message_error "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    # Check if backup name is provided
+    if [[ -z $backup_name ]]; then
+        message_error "Usage: $0 -n <backup name>"
+        exit 1
+    fi
+
+    # Check if required arguments are provided
+    if [[ -z $username ]] && [[ -z $password ]]; then
+        username=$MYSQL_USER
+        password=$MYSQL_PASSWORD
+    elif [[ -z $username ]] || [[ -z $password ]]; then
+        message_error "Usage: $0 -u <username> -p <password> -n <backup name>"
+        exit 1
+    fi
+
+    # Construct the full path of the backup file
+    local backup_path="${DATA_BACKUP_DIR}/${backup_name}"
+
+    # Check if the backup file exists
+    if [[ ! -f $backup_path ]]; then
+        message_error "Backup file does not exist."
+        exit 1
+    fi
+
+    if [[ -z $db_name ]]; then
+        if [[ $(get_file_name "$backup_path") =~ $DATA_BACKUP_PATTERN ]]; then
+            db_name="${BASH_REMATCH[1]}"
+        else
+            message_error "The database name has not been provided, and the backup name pattern does not match for $backup_name"
+            exit 1
+        fi
+    fi
+
+    # Start the restore process
+    message_success "The backup has been found. Initiating the restoration process from the '${backup_path}' backup to '${db_name}' database."
+
+    # Drop the existing database if it exists
+    mariadb -u"${username}" -p"${password}" -e "DROP DATABASE IF EXISTS $db_name;" 2>/dev/null &
+    spinner "Dropping database if it exists"
+    # Check the exit status of the mariadb function
+    if [[ $? -eq 0 ]]; then
+        message_success "Database ${db_name} successfully dropped."
+    else
+        message_error "Failed to drop the ${db_name} database. Restore process aborted."
+        exit 1
+    fi
+
+    # Create the database if it does not already exist with specified character set and collation
+    mariadb -u"${username}" -p"${password}" -e "CREATE DATABASE IF NOT EXISTS $db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;" 2>/dev/null &
+    spinner "Creating database ${db_name}"
+    # Check the exit status of the mariadb function
+    if [[ $? -eq 0 ]]; then
+        message_success "The database '${db_name}' has been successfully created."
+    else
+        message_error "Failed to create '${db_name}' database. Restore process aborted."
+        exit 1
+    fi
+
+    # Check if the database exists and restore the backup
+    if mariadb -u $username -p"${password}" -e "USE $db_name;" 2>/dev/null; then
+        # message_info "Database $database found. Initiating restore process..."
+        zcat $backup_path | mariadb -u"${username}" -p"${password}" $db_name 2>/dev/null &
+        spinner "Restoring database '${db_name}'"
+        # Check the exit status of the mariadb function
+        if [[ $? -eq 0 ]]; then
+            message_success "Backup successfully restored to database '${db_name}'."
+        else
+            message_error "Failed to restore the backup to database '${db_name}'. Restore process aborted."
+            exit 1
+        fi
+    else
+        message_error "Database '${db_name}' not found."
+        exit 1
+    fi
+}
+
+restore_dbms() {
+    local backup_name=""
+    message_welcome "Initiating the DBMS restoration process."
+    message_ask "Please select a DBMS backup from the available options below:"
+    list_backups "*_${DBMS_BACKUP_FILE_SUFFIX}.sql.gz"
+    read -r -p "  Enter the name of the DBMS backup you wish to restore:   " backup_name
+    restore_mb -n "${backup_name}" "$@"
+}
+
+restore_data() {
+    local backup_name="${1:-""}"
+    local db_name="${2:-""}"
+
+    message_welcome "Initiating the database restoration process."
+
+    if [ -z $backup_name ]; then
+        message_ask "Please choose a backup from the available options below:"
+        list_backups "*${db_name}*_${DATA_BACKUP_FILE_SUFFIX}.sql.gz" "$DATA_BACKUP_DIR"
+        read -r -p "  Enter the name of the backup you wish to restore:   " backup_name
+
+        if [[ $(get_file_name "$backup_name") =~ $DATA_BACKUP_PATTERN ]]; then
+            db_name="${BASH_REMATCH[1]}"
+        fi
+    fi
+
+    if [ -z "$db_name" ] || ([ -n "$db_name" ] && ! yes_no "Do you want to restore the '${db_name}' database?"); then
+        message_ask "Please select the database you want to restore from the list below:"
+        list_databases "${MYSQL_USER}" "${MYSQL_PASSWORD}"
+        read -p "Enter the name of the database you wish to restore: " db_name
+    else
+        echo "Database restoration cancelled."
+    fi
+
+    restore_db -d "${db_name}" -n "${backup_name}"
+}
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]"
+    exit 1
+fi
+
+function_name="$1"
+shift
+
+# Call the specified function with the provided arguments
+case $function_name in
+"md")
+    restore_mb "$@"
+    ;;
+"db")
+    restore_db "$@"
+    ;;
+"dbms")
+    restore_dbms "$@"
+    ;;
+"data")
+    restore_data "$@"
+    ;;
+*)
+    message_error "Invalid function name. Available functions: md, db, dbms, data"
+    exit 1
+    ;;
+esac

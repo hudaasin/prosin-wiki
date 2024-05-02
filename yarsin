@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+# Define the project and workdir directory
+workdir=$(dirname "$(readlink -f "$BASH_SOURCE")") # Get the directory of the script
+project_dir=$(realpath "$workdir")                 # Get the project directory by going up one level
+
+# Source the necessary files
+source "${workdir}/sources/_constants.sh" # Constants file
+source "${workdir}/sources/_messages.sh"  # Messages file
+source "${workdir}/sources/_utils.sh"     # Utilities file
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]" # Display usage error message
+    exit 1
+fi
+
+# Call the specified function with the provided arguments
+function_name=$1
+source_path="${workdir}/sources/${function_name}"
+docker_compose="${workdir}"/compose.yml
+
+if [ -f "${source_path}" ]; then
+    shift
+    source "${source_path}" "$@"
+elif [[ "$function_name" = "dev" ]]; then
+    code $(convert_to_absolute_path .)
+else
+    docker compose -f "${docker_compose}" run --rm --no-deps db sh -c "run_as $(whoami) $(id -u) yarsin $*"
+fi

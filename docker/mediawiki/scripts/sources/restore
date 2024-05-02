@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+
+# Set the script to exit immediately if a command exits with a non-zero status
+set -o errexit
+# Set the script to exit when a command in a pipeline fails
+set -o pipefail
+# Set the script to exit if it tries to use unset variables
+set -o nounset
+
+# Function to restore the database
+restore_imgs() {
+    # Initialize variables
+    local backup_name=""
+
+    # Parse named arguments
+    while getopts "n:" opt; do
+        case ${opt} in
+        n) backup_name=${OPTARG} ;; # Set the backup_name from the argument
+        *)
+            message_error "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+
+    # Check if required arguments are provided
+    if [[ -z $backup_name ]]; then
+        echo "Usage: $0 -n <backup name>"
+        exit 1
+    fi
+
+    local backup_file_name="${BACKUP_DIR}/${backup_name}"
+
+    # Check if the backup file exists and has the correct extension
+    if [[ ! -f "${backup_file_name}" || ! "${backup_name}" == *${BACKUP_FILE_SUFFIX}.tar.xz ]]; then
+        message_error "No backup with the specified filename found or the file does not have the correct extension (${BACKUP_FILE_SUFFIX}.tar.xz). Check out the 'backups' maintenance script output to see if there is one and try again."
+        exit 1
+    fi
+
+    # Restore the images backup to the appropriate directory
+    rm -rf "${BACKUP_DESTINATION}"/* 2>/dev/null &
+    spinner "Removing images in '${BACKUP_DESTINATION}'"
+    # Check the exit status of the gunzip function
+    if [[ $? -eq 0 ]]; then
+        message_success "Images inside '${BACKUP_DESTINATION}' have been removed."
+    else
+        message_error "Failed to remove the images into '${BACKUP_DESTINATION}'. Restore process aborted."
+        exit 1
+    fi
+
+    (xz -d -c "${backup_file_name}" | tar -xf - -C /) 2>/dev/null &
+    spinner "Restoring images from '$backup_file_name' to '${BACKUP_DESTINATION}'"
+    # Check the exit status of the gunzip function
+    if [[ $? -eq 0 ]]; then
+        message_success "All images restored from '${backup_file_name}' backup to '${BACKUP_DESTINATION}'."
+    else
+        message_error "Failed to restore the backup '${backup_file_name}' to '${BACKUP_DESTINATION}'. Restore process aborted."
+        exit 1
+    fi
+    message_success "Images backup successfully restored."
+}
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]"
+    exit 1
+fi
+
+# Determine the action based on the provided argument
+case $1 in
+"init")
+    # Initializa the database
+    message_welcome "You are about to initialize the database with factory data."
+    restore_imgs "$@"
+    message_success "The initialization process has been successfully completed. You can now start using your wikis..."
+    ;;
+"imgs")
+    shift
+    backup_name=""
+    # Display a welcoming message before starting the image file restoration
+    message_welcome "Initiating the image file restoration."
+    # Ask the user to select an image backup for restoration
+    message_ask "Here are the available image backups. Please select the one you wish to restore."
+    list_backups "*_${BACKUP_FILE_SUFFIX}.tar.xz"
+    read -r -p "  Enter the name of the image backup you wish to restore:   " backup_name
+    # Initiate the restoration process for the selected image backup
+    restore_imgs -n "$backup_name" "$@"
+    ;;
+*)
+    # Display an error message for an invalid function name
+    message_error "Invalid function name. Available functions: imgs"
+    exit 1
+    ;;
+esac

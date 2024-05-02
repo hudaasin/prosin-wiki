@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+if [[ $# -eq 0 ]]; then
+    docker compose -f "${docker_compose}" down matsin
+else
+    docker compose -f "${docker_compose}" down "$@"
+fi
+
+# Check if containers for matsin, vazhsin, and resasin services are not running
+if ! docker ps --format '{{.Names}}' | grep -q -E '^(prosin_wiki_matsin|prosin_wiki_phpmyadmin)$'; then
+    docker compose -f "${docker_compose}" down # Stop all services
+fi

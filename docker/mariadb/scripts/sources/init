@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+# Function to initializa the database
+init() {
+    message_welcome "You are about to initialize the database with factory data."
+    yarsin restore md -n "${INITIAL_BACKUP}" &&
+        message_success "The initialization process has been successfully completed. You can now start using your wikis..."
+}
+
+init "$@"

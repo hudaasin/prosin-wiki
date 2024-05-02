@@ -1,0 +1,165 @@
+#!/usr/bin/env bash
+
+# Set bash options
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# Function to backup the entire DBMS (Database Management System)
+backup_md() {
+    # Initialize variables
+    local username=""
+    local password=""
+    local backup_name=""
+
+    # Parse command line options
+    while getopts "u:p:n:" opt; do
+        case ${opt} in
+        u) username=${OPTARG} ;;
+        p) password=${OPTARG} ;;
+        n) backup_name=${OPTARG} ;;
+        *)
+            message_error "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    # Set default username and password if not provided
+    if [[ -z $username ]] && [[ -z $password ]]; then
+        username="root"
+        password="${MYSQL_ROOT_PASSWORD}"
+    elif [[ -z $username ]] || [[ -z $password ]]; then
+        message_error "Usage: $0 -u <username> -p <password>"
+        exit 1
+    fi
+
+    local backup_path=""
+
+    # Set backup path based on provided name or generate one
+    if [[ -n $backup_name ]]; then
+        backup_path="${DBMS_BACKUP_DIR}/${backup_name}"
+    else
+        backup_path="${DBMS_BACKUP_DIR}/${DBMS_BACKUP_FILE_PREFIX}___$(date +'%Y_%m_%d__%H_%M_%S')___${DBMS_BACKUP_FILE_SUFFIX}.sql.gz"
+    fi
+
+    # Backup the DBMS and compress the file
+    mariadb-backup --backup --host=${MYSQL_HOST} --port=${MYSQL_PORT} --user=${username} --password=${password} --stream=xbstream 2>/dev/null |
+        gzip -q -9 >"${backup_path}" &
+    spinner "Creating a backup of the DBMS and compressing the file..." ||
+        (rm "${backup_path}" && exit 1)
+
+    # Check if backup was successful
+    if [[ $? -eq 0 ]]; then
+        message_success "DBMS backup successfully created at: '${backup_path}'"
+    else
+        message_error "Backup failed. Please check the mariadb-backup command."
+        exit 1
+    fi
+}
+
+# Function to backup a specific database
+backup_db() {
+    # Initialize variables
+    local username=""
+    local password=""
+    local db_name=""
+    local backup_name=""
+    local backup_path=""
+
+    # Parse command line options
+    while getopts "d:n:u:p:" opt; do
+        case ${opt} in
+        d) db_name=${OPTARG} ;;
+        n) backup_name=${OPTARG} ;;
+        u) username=${OPTARG} ;;
+        p) password=${OPTARG} ;;
+        *)
+            echo "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+    shift $(($OPTIND - 1))
+
+    # Check for required database name
+    if [[ -z $db_name ]]; then
+        echo "Usage: $0 -d <database name>"
+        exit 1
+    fi
+
+    # Set default username and password if not provided
+    if [[ -z $username ]] && [[ -z $password ]]; then
+        username=$MYSQL_USER
+        password=$MYSQL_PASSWORD
+    elif [[ -z $username ]] || [[ -z $password ]]; then
+        echo "Usage: $0 -u <username> -p <password> -d <database name>"
+        exit 1
+    fi
+
+    # Set backup path based on provided name or generate one
+    if [[ -n $backup_name ]]; then
+        backup_path="${DATA_BACKUP_DIR}/${backup_name}"
+    else
+        backup_path="${DATA_BACKUP_DIR}/${db_name}___$(date +'%Y_%m_%d__%H_%M_%S')___${DATA_BACKUP_FILE_SUFFIX}.sql.gz"
+    fi
+
+    # Check if the database exists and initiate backup process
+    if mariadb -u $username -p$password -e "USE $db_name;" 2>/dev/null; then
+        message_success "Database $db_name found. Initiating backup process..."
+        mariadb-dump -u${username} -p${password} --databases "${db_name}" 2>/dev/null |
+            gzip -q -9 >"${backup_path}" &
+        spinner "Creating a backup of the database and compressing the file..." ||
+            (rm "${backup_path}" && exit 1)
+        message_success "Backup successfully created at: '$backup_path'"
+    else
+        message_error "Database $db_name not found."
+        exit 1
+    fi
+}
+
+# Function to initiate the DBMS backup process
+backup_dbms() {
+    message_welcome "Initializing DBMS backup..."
+    backup_md "$@"
+}
+
+# Function to interactively select a database to backup
+backup_data() {
+    local db_name=""
+    message_welcome "Initializing database backup"
+    message_ask "Please select a database to back up. Here are your current databases:"
+    list_databases "${MYSQL_USER}" "${MYSQL_PASSWORD}"
+    read -p "  Enter the name of the database you wish to back up:  " db_name
+    backup_db -d "$db_name" "$@"
+}
+
+# Check for command line arguments
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]"
+    exit 1
+fi
+
+function_name="$1"
+shift
+
+# Execute the specified backup function
+case $function_name in
+"md")
+    backup_md "$@"
+    ;;
+"db")
+    backup_db "$@"
+    ;;
+"dbms")
+    backup_dbms "$@"
+    ;;
+"data")
+    backup_data "$@"
+    ;;
+*)
+    message_error "Invalid function name. Available functions: dbms, db, data"
+    exit 1
+    ;;
+esac

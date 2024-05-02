@@ -1,0 +1,63 @@
+services:
+  matsin:
+    build:
+      context: .
+      dockerfile: ./docker/mediawiki/Dockerfile
+      target: mediawiki_run_stage
+      args:
+        - MEDIA_WIKI_VERSION=1.41
+        - INSTANCE_BUILD=matsin
+    container_name: prosin_wiki_matsin
+    ports:
+      - "8580:80"
+    environment:
+      - MEDIAWIKI_DB_TYPE=${MATSIN_DB_TYPE}
+      - MEDIAWIKI_DB_HOST=${MATSIN_DB_HOST}
+      - MEDIAWIKI_DB_PORT=${MATSIN_DB_PORT}
+      - MEDIAWIKI_DB_NAME=${MATSIN_DB_NAME}
+      - MEDIAWIKI_DB_USER=${MATSIN_DB_USER}
+      - MEDIAWIKI_DB_PASSWORD=${MATSIN_DB_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./public/matsin:/var/www/html/public
+      - ./settings/matsin/LocalSettings.php:/var/www/html/LocalSettings.php
+      - matsin_imgs:/var/www/html/images
+    depends_on:
+      - db
+    networks:
+      - brgnet
+
+  db:
+    build:
+      context: ./docker/mariadb
+      dockerfile: Dockerfile
+    container_name: prosin_wiki_db
+    env_file:
+      - .env
+    volumes:
+      - ./backups:/backups
+      - db_data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    networks:
+      - brgnet
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: prosin_wiki_phpmyadmin
+    ports:
+      - 8590:80
+    env_file:
+      - .env
+
+    networks:
+      - brgnet
+
+networks:
+  brgnet:
+    driver: bridge
+
+volumes:
+  # Define an external volume named matsin_imgs
+  matsin_imgs: {}
+  # Define an external volume named db_data
+  db_data: {}

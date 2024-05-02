@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+
+# Set the script to exit immediately if a command exits with a non-zero status
+set -o errexit
+# Set the script to exit when a command in a pipeline fails
+set -o pipefail
+# Set the script to exit if it tries to use unset variables
+set -o nounset
+
+# Function to create a backup of images
+backup_imgs() {
+    local backup_name=""
+
+    # Process named arguments
+    while getopts "i:n:" opt; do
+        case ${opt} in
+        n) backup_name=${OPTARG} ;;
+        *)
+            message_error "Invalid option: ${opt}"
+            exit 1
+            ;;
+        esac
+    done
+
+    local backup_path=""
+
+    # Check if a backup file name is provided as an argument
+    if [[ -n $backup_name ]]; then
+        backup_path="${BACKUP_DIR}/${backup_name}"
+    else
+        # If no backup file name is provided, determine the default name
+        backup_path="${BACKUP_DIR}/${BACKUP_FILE_PREFIX}___$(date +'%Y_%m_%d__%H_%M_%S')___${BACKUP_FILE_SUFFIX}.tar.xz"
+    fi
+
+    # Create a tar archive of the images directory without printing tar messages and removing leading '/'
+    (tar -cvf - ${BACKUP_SOURCE} | xz -c -z >${backup_path}) 2>/dev/null &
+    # Display a spinner message indicating the backup and compression process
+    spinner "Creating the tar archive of '${BACKUP_SOURCE}' and compress it using xz." ||
+        (rm ${backup_path} && exit 1)
+    # Check the exit status of the tar function
+    if [[ $? -eq 0 ]]; then # If backup is successful, display a success message
+        message_success "Images backup successfully created at: '${backup_path}'"
+    else # If backup fails, display an error message and exit
+        message_error "Backup failed. Please check the tar command."
+        exit 1
+    fi
+}
+
+# Check for the function name argument
+if [[ $# -eq 0 ]]; then
+    message_error "Usage: $0 <function_name> [arguments]"
+    exit 1
+fi
+
+# Call the specified function with the provided arguments
+case $1 in
+"imgs")
+    shift
+    backup_imgs "$@"
+    ;;
+*)
+    message_error "Invalid function name. Available functions: imgs"
+    exit 1
+    ;;
+esac
