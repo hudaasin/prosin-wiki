@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-# Set the workdir directory to the directory containing the script
-workdir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 run_sh_files() {
     local src_path="${1}"
 
@@ -13,7 +10,7 @@ run_sh_files() {
     fi
 
     # Loop through all .sh files in the directory and run them
-    for file in "$directory"/*.sh; do
+    for file in "$src_path"/*.sh; do
         if [ -f "$file" ]; then
             source "$file"
         fi

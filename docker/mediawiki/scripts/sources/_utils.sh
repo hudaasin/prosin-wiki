@@ -30,7 +30,7 @@ yes_no() {
 # Description: Lists backup files based on a given pattern
 # Arguments:
 #   $1: pattern - the pattern to search for in backup filenames
-#   $2: path (optional) - the directory path to search for backup files (default: $DBMS_BACKUP_DIR)
+#   $2: path (optional) - the directory path to search for backup files (default: $BACKUP_DIR)
 # Returns: None
 list_backups() {
     local path="${2:-$BACKUP_DIR}"

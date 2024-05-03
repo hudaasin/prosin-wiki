@@ -54,7 +54,7 @@ RUN composer update --no-dev
 
 
 ##########################################################
-#          Create a run stage for Prosin wiki            #
+#              Create a run stage for wiki               #
 ##########################################################
 # Create a new image stage named 'matsin' based on the mediawiki image
 FROM mediawiki AS mediawiki_run_stage

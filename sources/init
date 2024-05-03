@@ -15,10 +15,12 @@ init() {
     # Execute backup command for the database management system
     docker compose -f "${docker_compose}" down db -v
     docker compose -f "${docker_compose}" up db -d
-    docker compose -f "${docker_compose}" exec db bash -c "yarsin init -n ${backup_name}"
+    docker compose -f "${docker_compose}" exec db bash -c "yarsin init ${INITIAL_BACKUP}"
 
     if [ ${was_running} = 1 ]; then
         docker compose -f "${docker_compose}" restart db
+    else
+        docker compose -f $"docker_compose" down db
     fi
 }
 

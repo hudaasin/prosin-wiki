@@ -18,7 +18,7 @@ services:
       - MEDIAWIKI_DB_USER=${MATSIN_DB_USER}
       - MEDIAWIKI_DB_PASSWORD=${MATSIN_DB_PASSWORD}
     volumes:
-      - ./backups:/backups
+      - ./backups/matsin:/backups
       - ./public/matsin:/var/www/html/public
       - ./settings/matsin/LocalSettings.php:/var/www/html/LocalSettings.php
       - matsin_imgs:/var/www/html/images

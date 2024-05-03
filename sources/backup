@@ -67,7 +67,7 @@ persian_date="$(gregorian_to_persian)__$(date +'%H_%M_%S')"
 # Check if there are no command line arguments
 if [[ $# -eq 0 ]]; then
     # Backup data and images for default service
-    backup_data matsin_db "data/matsin_db___${persian_date}___data.sql.gz"
+    backup_data ${DEFAULT_DATABASE} "${DEFAULT_SERVICE}/${DEFAULT_DATABASE}___${persian_date}___data.sql.gz"
     exit 0
 fi
 
@@ -77,14 +77,19 @@ shift
 
 # Check the function name and call the corresponding backup function
 if [[ "$function_name" = "data" ]]; then
-    backup_data matsin_db "data/matsin_db___${persian_date}___data.sql.gz"
+    db_name="${1:-"${DEFAULT_DATABASE}"}"
+    service_name="$(get_service_name $db_name)"
+    backup_data "${db_name}" "${service_name}/${db_name}___${persian_date}___data.sql.gz"
 elif [[ "$function_name" = "imgs" ]]; then
-    backup_imgs matsin "imgs/matsin___${persian_date}___imgs.tar.xz"
+    service_name="${1:-"${DEFAULT_SERVICE}"}"
+    backup_imgs "${service_name}" "${service_name}___${persian_date}___imgs.tar.xz"
 elif [[ "$function_name" = "dbms" ]]; then
-    backup_dbms "dbms/mariadb___${persian_date}___dbms.sql.gz"
+    backup_dbms "${DBMS_BACKUP_FILE_PREFIX}___${persian_date}___dbms.sql.gz"
 elif [[ "$function_name" = "full" ]]; then
-    backup_data matsin_db "full/matsin_db___${persian_date}___data.sql.gz"
-    backup_imgs matsin "full/matsin_db___${persian_date}___imgs.tar.xz"
+    service_name="${1:-"${DEFAULT_SERVICE}"}"
+    db_name="${service_name}_db"
+    backup_data "${db_name}" "${service_name}/${db_name}___${persian_date}___data.sql.gz"
+    backup_imgs "${service_name}" "${db_name}___${persian_date}___imgs.tar.xz"
 else
     message_error "Invalid function name. Available functions: data, imgs, full, dbms"
 fi

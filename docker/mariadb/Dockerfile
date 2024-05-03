@@ -1,5 +1,16 @@
-FROM mariadb:11.2
+ARG MARIADB_VERSION=11.2
 
+##########################################################
+#                     The base image                     #
+##########################################################
+# Use the specified MediaWiki version as the base image
+FROM mariadb:${MARIADB_VERSION} AS mariadb
+
+
+##########################################################
+#             Create a run stage for MariaDB             #
+##########################################################
+FROM mariadb AS mariadb_run_stage
 # Copy database initialization entrypoint scripts
 COPY ./db_entrypoint /docker-entrypoint-initdb.d/
 

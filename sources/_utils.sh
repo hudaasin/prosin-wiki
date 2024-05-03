@@ -105,3 +105,21 @@ docker_service_is_running() {
         return 1 # Return 1 to indicate that the service is not running
     fi
 }
+
+# get_service_name
+# This function takes a database name as input and returns the corresponding service name.
+# Parameters:
+#   $1 (string): The database name to be processed.
+# Returns:
+#   The service name extracted from the database name.
+get_service_name() {
+    # Store the input database name in a local variable
+    local database_name=$1
+
+    # Extract the service name by removing the "_db" suffix from the database name
+    # using parameter expansion. The result is stored in the local service_name variable.
+    local service_name="${database_name%_db}"
+
+    # Echo the extracted service name to the output
+    echo "$service_name"
+}

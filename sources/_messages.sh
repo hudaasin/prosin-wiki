@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Function to print a newline
 message_newline() {
@@ -50,38 +50,37 @@ message_ask() {
     echo -e "\e[1;34m?\e[0m ${@}"
 }
 
-
 spinner() {
     # Accepts a message as input
     local info="$1"
-    
+
     # Get the process ID of the background process
     local pid=$!
-    
+
     # Set the delay for the spinner animation
     local delay=0.5
-    
+
     # Define the spinner characters
     local spinstr='|/-\'
-    
+
     # Loop until the background process is running
     while kill -0 $pid 2>/dev/null; do
         # Rotate the spinner characters
         local temp=${spinstr#?}
         printf " [%c]  %s" "$spinstr" "$info"
         local spinstr=$temp${spinstr%"$temp"}
-        
+
         # Add backspace characters to reset the cursor position
         sleep $delay
         local reset="\b\b\b\b\b\b"
         for ((i = 1; i <= $(echo $info | wc -c); i++)); do
             reset+="\b"
         done
-        
+
         # Reset the cursor position for the next spinner update
         printf $reset
     done
-    
+
     # Clear the spinner and message once the process is complete
     printf "    \b\b\b\b"
 }

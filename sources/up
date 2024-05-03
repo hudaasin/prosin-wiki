@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 if [[ $# -eq 0 ]]; then
-    docker compose -f "${docker_compose}" up matsin -d
+    docker compose -f "${docker_compose}" up ${DEFAULT_SERVICE} -d
     exit 0
 fi
 

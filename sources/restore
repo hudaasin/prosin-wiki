@@ -8,7 +8,7 @@ restore_data() {
         was_running=0
     fi
 
-    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore data"
+    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore data "$@""
 
     if [ $was_running = 0 ]; then
         docker compose -f "${docker_compose}" down db
@@ -16,7 +16,8 @@ restore_data() {
 }
 
 restore_imgs() {
-    docker compose -f "${docker_compose}" run --rm matsin bash -c "yarsin restore imgs"
+    local service_name="${1}"
+    docker compose -f "${docker_compose}" run --rm ${service_name} bash -c "yarsin restore imgs "$@""
 }
 
 restore_dbms() {
@@ -27,7 +28,7 @@ restore_dbms() {
         was_running=0
     fi
 
-    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore dbms"
+    docker compose -f "${docker_compose}" exec db bash -c "yarsin restore dbms "$@""
 
     if [ $was_running = 0 ]; then
         docker compose -f "${docker_compose}" down db
@@ -44,8 +45,10 @@ function_name="$1"
 shift
 
 if [[ "$function_name" = "data" ]]; then
+    db_name="${1:-"${DEFAULT_DATABASE}"}"
     restore_data "$@"
 elif [[ "$function_name" = "imgs" ]]; then
+    service_name="${1:-"${DEFAULT_SERVICE}"}"
     restore_imgs "$@"
 elif [[ "$function_name" = "dbms" ]]; then
     restore_dbms "$@"
