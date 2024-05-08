@@ -194,4 +194,11 @@ wfLoadExtension( 'InputBox' );
 # End of automatically generated settings.
 # Add more configuration options below.
 
+wfLoadExtension( 'Diagrams' );
+wfLoadExtension( 'PageForms' );
+
+
 $wgGroupPermissions['sysop']['interwiki'] = true;
+# Configure settings for PageForms extension
+$wgGroupPermissions['*']['viewedittab'] = false;
+$wgGroupPermissions['sysop']['viewedittab'] = true;
