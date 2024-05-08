@@ -14,6 +14,14 @@ FROM mediawiki:${MEDIA_WIKI_VERSION} AS mediawiki
 # Use the base MediaWiki image as the starting point for the build stage
 FROM mediawiki AS mediawiki_build_stage
 
+# Update the package index to ensure you install the latest versions of packages
+RUN apt-get update && \
+    # Install the required packages: libzip-dev, zip
+    apt-get install -y libzip-dev zip && \
+    docker-php-ext-install zip && \
+    # Remove the package cache to reduce the image size
+    rm -rf /var/lib/apt/lists/*
+
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin -- --filename=composer
 

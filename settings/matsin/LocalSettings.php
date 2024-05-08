@@ -189,6 +189,7 @@ wfLoadExtension( 'UniversalLanguageSelector' );
 wfLoadExtension( 'VisualEditor' );
 wfLoadExtension( 'WikiEditor' );
 wfLoadExtension( 'InputBox' );
+wfLoadExtension( 'Widgets' );
 
 
 # End of automatically generated settings.
